@@ -1,0 +1,266 @@
+// ============================================================================
+// Piqnex backend - Prisma schema
+// ============================================================================
+// This mirrors the schema that used to live in Supabase
+// (missing-piece-marketplace/supabase/migrations/0001_init_schema.sql +
+// 0003_admin.sql), now that the backend owns its own Postgres database
+// instead of Supabase. Two changes from the original SQL, both because
+// Supabase Auth no longer exists:
+//   1. `profiles` (which extended Supabase's `auth.users`) is now a single
+//      `User` model that also owns the credentials (`email`, `passwordHash`)
+//      the Auth module (task #24) will check with bcrypt + Passport/JWT.
+//   2. Row Level Security is gone - Supabase enforced "you can only edit
+//      your own listing" at the database layer. Here that same rule has to
+//      be enforced in the NestJS service layer instead (e.g. an ownership
+//      check in ListingsService before an update/delete).
+// Every table name, column name, default, and foreign-key behavior below
+// (`onDelete: Cascade` / `SetNull` / `Restrict`) matches the original SQL
+// 1:1 - see the @map()/@@map() on anything whose name changed to camelCase.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Prisma 7: the connection URL lives in prisma.config.ts (for the CLI) and
+  // in PrismaService's pg adapter (at runtime) - not here.
+}
+
+// ----------------------------------------------------------------------------
+// 1. USERS (was `profiles`, merged with what used to be `auth.users`)
+// ----------------------------------------------------------------------------
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  displayName  String   @default("New User") @map("display_name")
+  location     String?
+  avatarUrl    String?  @map("avatar_url")
+  isAdmin      Boolean  @default(false) @map("is_admin")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  listings        Listing[]
+  needRequests    NeedRequest[]
+  contactRequests ContactRequest[]
+
+  @@map("users")
+}
+
+// ----------------------------------------------------------------------------
+// 2. CATALOG: categories -> brands -> products -> product_models -> parts
+// ----------------------------------------------------------------------------
+model Category {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug      String @unique
+  name      String
+  icon      String?
+  sortOrder Int    @default(0) @map("sort_order")
+
+  brands       Brand[]
+  products     Product[]
+  listings     Listing[]
+  needRequests NeedRequest[]
+
+  @@map("categories")
+}
+
+model Brand {
+  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  categoryId String? @map("category_id") @db.Uuid
+  slug       String  @unique
+  name       String
+
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  products Product[]
+  listings Listing[]
+
+  @@index([categoryId])
+  @@map("brands")
+}
+
+model Product {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  brandId    String   @map("brand_id") @db.Uuid
+  categoryId String   @map("category_id") @db.Uuid
+  name       String
+  slug       String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  brand    Brand          @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  category Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  models   ProductModel[]
+  listings Listing[]
+
+  @@unique([brandId, slug])
+  @@index([categoryId])
+  @@map("products")
+}
+
+// A product can have multiple generations/versions ("2021", "Gen 2", etc).
+// versionLabel can be an empty string when there's no meaningful version.
+model ProductModel {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId    String   @map("product_id") @db.Uuid
+  versionLabel String   @default("") @map("version_label")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  product             Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  parts               Part[]
+  listings            Listing[]
+  compatibleWithParts PartCompatibility[] @relation("CompatibleModel")
+
+  @@unique([productId, versionLabel])
+  @@map("product_models")
+}
+
+model Part {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  modelId   String   @map("model_id") @db.Uuid
+  name      String
+  slug      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  model         ProductModel        @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  compatibility PartCompatibility[]
+  listings      Listing[]
+
+  @@unique([modelId, slug])
+  @@map("parts")
+}
+
+// ----------------------------------------------------------------------------
+// 3. FUTURE-READY: part_compatibility
+// Not used by the MVP matching engine (which does simple exact matching),
+// kept so "Version 2" compatibility scoring can be added later without a
+// migration that touches live data. Meaning: `part` is also compatible
+// with `compatibleModel`.
+// ----------------------------------------------------------------------------
+model PartCompatibility {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partId            String   @map("part_id") @db.Uuid
+  compatibleModelId String   @map("compatible_model_id") @db.Uuid
+  notes             String?
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  part            Part         @relation(fields: [partId], references: [id], onDelete: Cascade)
+  compatibleModel ProductModel @relation("CompatibleModel", fields: [compatibleModelId], references: [id], onDelete: Cascade)
+
+  @@unique([partId, compatibleModelId])
+  @@map("part_compatibility")
+}
+
+// ----------------------------------------------------------------------------
+// 4. LISTINGS ("I HAVE A PART")
+// ----------------------------------------------------------------------------
+model Listing {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sellerId String  @map("seller_id") @db.Uuid
+
+  // Optional links into the structured catalog (nullable: most listings will
+  // be free text only, since the catalog starts nearly empty).
+  categoryId String? @map("category_id") @db.Uuid
+  brandId    String? @map("brand_id") @db.Uuid
+  productId  String? @map("product_id") @db.Uuid
+  modelId    String? @map("model_id") @db.Uuid
+  partId     String? @map("part_id") @db.Uuid
+
+  // Free-text fields: always present, always what the UI displays/searches.
+  brandName   String  @map("brand_name")
+  productName String  @map("product_name")
+  modelLabel  String? @map("model_label")
+  partName    String  @map("part_name")
+
+  /// One of: 'New' | 'Like New' | 'Used - Working' | 'Used - Good' | 'Used - Fair' | 'For Parts'
+  /// (enforced in the DTO with class-validator's @IsIn, same values as the
+  /// original Postgres `check` constraint - see ListingCondition in dto/.)
+  condition   String
+  price       Decimal @db.Decimal(12, 2)
+  currency    String  @default("INR")
+  description String  @default("")
+  location    String?
+
+  /// One of: 'active' | 'sold' | 'removed' (see ListingStatus in dto/)
+  status String @default("active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  seller   User          @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  category Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  brand    Brand?        @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  product  Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  model    ProductModel? @relation(fields: [modelId], references: [id], onDelete: SetNull)
+  part     Part?         @relation(fields: [partId], references: [id], onDelete: SetNull)
+
+  images          ListingImage[]
+  contactRequests ContactRequest[]
+
+  @@index([sellerId])
+  @@index([status])
+  @@index([categoryId])
+  @@index([createdAt(sort: Desc)])
+  @@index([price])
+  @@map("listings")
+}
+
+model ListingImage {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  listingId   String @map("listing_id") @db.Uuid
+  storagePath String @map("storage_path")
+  sortOrder   Int    @default(0) @map("sort_order")
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+  @@map("listing_images")
+}
+
+// ----------------------------------------------------------------------------
+// 5. NEED REQUESTS ("I NEED A PART")
+// ----------------------------------------------------------------------------
+model NeedRequest {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requesterId String  @map("requester_id") @db.Uuid
+  categoryId  String? @map("category_id") @db.Uuid
+
+  brandName   String  @map("brand_name")
+  productName String  @map("product_name")
+  modelLabel  String? @map("model_label")
+  partName    String  @map("part_name")
+
+  description String?
+  location    String?
+
+  /// One of: 'open' | 'matched' | 'closed' (see NeedRequestStatus in dto/)
+  status String @default("open")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  requester User      @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+  category  Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([requesterId])
+  @@index([status])
+  @@map("need_requests")
+}
+
+// ----------------------------------------------------------------------------
+// 6. CONTACT REQUESTS (buyer -> seller, simple inbox - not real-time chat)
+// ----------------------------------------------------------------------------
+model ContactRequest {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  listingId   String   @map("listing_id") @db.Uuid
+  buyerId     String   @map("buyer_id") @db.Uuid
+  message     String
+  contactInfo String?  @map("contact_info")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  buyer   User    @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+  @@index([buyerId])
+  @@map("contact_requests")
+}
