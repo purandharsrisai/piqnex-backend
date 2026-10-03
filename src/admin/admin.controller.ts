@@ -12,14 +12,19 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { UpdateListingStatusDto } from '../listings/dto/update-listing-status.dto';
 import { UpdateNeedRequestStatusDto } from '../need-requests/dto/update-need-request-status.dto';
 import { AdminService } from './admin.service';
 import { CreateBrandDto } from './dto/create-brand.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, AdminGuard)
@@ -65,37 +70,67 @@ export class AdminController {
     return this.adminService.deleteNeedRequest(id);
   }
 
+  // Users, roles, and the catalog are Admin-only - a Moderator can act on
+  // listings/need requests (above) but can't see the users list, change
+  // anyone's role, or manage categories/brands. Enforced here with
+  // RolesGuard, not just hidden in the UI.
+  @Roles('ADMIN')
+  @UseGuards(RolesGuard)
   @Get('users')
   users() {
     return this.adminService.getAllUsers();
   }
 
+  @Roles('ADMIN')
+  @UseGuards(RolesGuard)
+  @HttpCode(HttpStatus.OK)
+  @Patch('users/:id/role')
+  setUserRole(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateUserRoleDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.adminService.setUserRole(id, dto.role, actor.id);
+  }
+
+  @Roles('ADMIN')
+  @UseGuards(RolesGuard)
   @Get('categories')
   categories() {
     return this.adminService.getCategories();
   }
 
+  @Roles('ADMIN')
+  @UseGuards(RolesGuard)
   @Post('categories')
   createCategory(@Body() dto: CreateCategoryDto) {
     return this.adminService.createCategory(dto);
   }
 
+  @Roles('ADMIN')
+  @UseGuards(RolesGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   @Delete('categories/:id')
   deleteCategory(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.deleteCategory(id);
   }
 
+  @Roles('ADMIN')
+  @UseGuards(RolesGuard)
   @Get('brands')
   brands() {
     return this.adminService.getBrands();
   }
 
+  @Roles('ADMIN')
+  @UseGuards(RolesGuard)
   @Post('brands')
   createBrand(@Body() dto: CreateBrandDto) {
     return this.adminService.createBrand(dto);
   }
 
+  @Roles('ADMIN')
+  @UseGuards(RolesGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   @Delete('brands/:id')
   deleteBrand(@Param('id', ParseUUIDPipe) id: string) {

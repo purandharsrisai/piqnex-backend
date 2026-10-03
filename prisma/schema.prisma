@@ -37,15 +37,54 @@ model User {
   passwordHash String   @map("password_hash")
   displayName  String   @default("New User") @map("display_name")
   location     String?
+  // Optional - added from the profile page after signup, not collected at
+  // signup time (see UpdateProfileDto / ProfileService.updateMe).
+  phone        String?
   avatarUrl    String?  @map("avatar_url")
   isAdmin      Boolean  @default(false) @map("is_admin")
+  /// One of: 'ADMIN' | 'MODERATOR' (see admin/admin.constants.ts) - only
+  /// meaningful when isAdmin is true; null for every regular user, and for
+  /// an admin whose kind hasn't been set yet. Deliberately a plain string
+  /// column (not a native Postgres enum), matching every other status-like
+  /// field in this schema (Listing.status, NeedRequest.status, ...).
+  role         String?
   createdAt    DateTime @default(now()) @map("created_at")
 
-  listings        Listing[]
-  needRequests    NeedRequest[]
-  contactRequests ContactRequest[]
+  listings            Listing[]
+  needRequests        NeedRequest[]
+  contactRequests     ContactRequest[]
+  passwordResetTokens PasswordResetToken[]
 
   @@map("users")
+}
+
+// ----------------------------------------------------------------------------
+// 1b. PASSWORD RESET TOKENS ("forgot password" flow)
+//
+// For now the plain token is handed straight back to the frontend in the API
+// response instead of being emailed (see AuthService.forgotPassword) - there's
+// no email sending set up in this project yet, so this is a stand-in until
+// that's built. Nothing about this table needs to change when email sending
+// is added later - only the delivery of the token changes, not how it's
+// generated, stored, or checked.
+// ----------------------------------------------------------------------------
+model PasswordResetToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  // SHA-256 hash of the actual token - like a password, the raw token is
+  // never stored, so a leaked database row can't be used to reset anyone's
+  // password.
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  // Set once the token has been used to actually reset a password, so it
+  // can't be replayed a second time.
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 // ----------------------------------------------------------------------------

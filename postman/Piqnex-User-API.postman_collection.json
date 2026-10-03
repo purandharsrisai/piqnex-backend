@@ -1,0 +1,1041 @@
+{
+  "info": {
+    "_postman_id": "6ff8a499-1285-4f80-86a5-8bd2b9a504d0",
+    "name": "Piqnex User API",
+    "version": "1.0.0",
+    "description": "piqnex-backend (NestJS + Prisma) - the regular, end-user-facing API: signup/login, browsing and posting listings/need requests, contacting sellers, your own profile, and image uploads.\n\nThis used to be one collection together with the admin endpoints (see Piqnex-Admin-API.postman_collection.json for those - split out on 2026-10-03 so the two APIs can be versioned and maintained independently; see each collection's own CHANGELOG for history before and after the split).\n\nQuick start:\n1. Make sure the backend is running (npm run start:dev in piqnex-backend) and Postgres is up.\n2. Import this collection - the baseUrl variable below already points at http://localhost:4000.\n3. Run 'Auth > Sign up' once (edit testEmail/testPassword in the collection variables first if you like) - it automatically saves {{accessToken}}.\n4. Every other request already uses Bearer {{accessToken}} at the collection level, so you can just run them.\n5. Requests that create something (Create listing, Create need request, Create category/brand) automatically save their new id (listingId, needRequestId, categoryId, brandId) for the requests below them that need it.\n\nFor admin-only moderation, user/role management, and catalog management, use the separate Piqnex Admin API collection instead.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000",
+      "type": "string"
+    },
+    {
+      "key": "testEmail",
+      "value": "test.user@example.com",
+      "type": "string"
+    },
+    {
+      "key": "testPhone",
+      "value": "+91 9876543210",
+      "type": "string"
+    },
+    {
+      "key": "testPassword",
+      "value": "password123",
+      "type": "string"
+    },
+    {
+      "key": "testNewPassword",
+      "value": "newpassword456",
+      "type": "string"
+    },
+    {
+      "key": "resetToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "listingId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "needRequestId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "categoryId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "categorySlug",
+      "value": "audio",
+      "type": "string"
+    },
+    {
+      "key": "brandId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "API root",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": []
+            },
+            "description": "Nest's default hello-world root route - good for a quick 'is the server up' check.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Sign up",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/signup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "signup"
+              ]
+            },
+            "description": "Creates a new user and returns {accessToken, user}. The test script below automatically saves accessToken as a collection variable so every other request can use it.\n\nphone is now REQUIRED at signup (loosely validated - digits, spaces, +, (), - ; 6-20 chars). It can still be changed later from Profile > Update my profile, where it remains optional.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\",\n  \"displayName\": \"Test User\",\n  \"phone\": \"{{testPhone}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    const data = pm.response.json();",
+                  "    if (data.accessToken) {",
+                  "        pm.collectionVariables.set(\"accessToken\", data.accessToken);",
+                  "        pm.collectionVariables.set(\"accessToken_isAdmin\", String(!!(data.user && data.user.isAdmin)));",
+                  "        console.log(\"Saved accessToken for\", data.user && data.user.email);",
+                  "    }",
+                  "    if (data.user && data.user.id) {",
+                  "        pm.collectionVariables.set(\"userId\", data.user.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Log in",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Logs in an existing user. Also saves accessToken automatically. Re-run this after changing is_admin in the DB to pick up a token with the fresh isAdmin claim.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    const data = pm.response.json();",
+                  "    if (data.accessToken) {",
+                  "        pm.collectionVariables.set(\"accessToken\", data.accessToken);",
+                  "        pm.collectionVariables.set(\"accessToken_isAdmin\", String(!!(data.user && data.user.isAdmin)));",
+                  "        console.log(\"Saved accessToken for\", data.user && data.user.email);",
+                  "    }",
+                  "    if (data.user && data.user.id) {",
+                  "        pm.collectionVariables.set(\"userId\", data.user.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Forgot password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "forgot-password"
+              ]
+            },
+            "description": "Starts a password reset for the given email, for a user who is logged out and has forgotten their password (separate from 'Change password', which needs to be logged in and know your current password).\n\nTEMPORARY: there's no email sending set up in this project yet, so instead of being emailed, the reset token is returned directly in this response as `resetToken` (only when the email matches a real account - otherwise just a generic message, no resetToken). The test script below saves it as the `resetToken` collection variable automatically, and the response is always 200 either way so you can't tell from the status code alone whether the email exists.\n\nWhen real email sending is added later, this response will stop including resetToken and the reset link will only go to the user's inbox instead.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const data = pm.response.json();",
+                  "    if (data.resetToken) {",
+                  "        pm.collectionVariables.set(\"resetToken\", data.resetToken);",
+                  "        console.log(\"Saved resetToken - run 'Reset password' next.\");",
+                  "    } else {",
+                  "        console.log(\"No resetToken in the response - double check testEmail matches a real account.\");",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reset password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
+            },
+            "description": "Finishes the 'forgot password' flow, using the {{resetToken}} saved by 'Forgot password' above. Returns 400 if the token is wrong, already used, or has expired (tokens are valid for 1 hour and can only be used once).\n\nOn success, the test script swaps {{testPassword}} and {{testNewPassword}} the same way 'Change password' does, so the saved login details stay usable for the next run.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"newPassword\": \"{{testNewPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const oldPassword = pm.collectionVariables.get(\"testPassword\");",
+                  "    const newPassword = pm.collectionVariables.get(\"testNewPassword\");",
+                  "    pm.collectionVariables.set(\"testPassword\", newPassword);",
+                  "    pm.collectionVariables.set(\"testNewPassword\", oldPassword);",
+                  "    pm.collectionVariables.set(\"resetToken\", \"\");",
+                  "    console.log(\"Password reset - testPassword/testNewPassword swapped, resetToken cleared.\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Who am I (/auth/me)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Returns the decoded JWT payload (id, email, isAdmin) for whichever token is in {{accessToken}}."
+          }
+        },
+        {
+          "name": "Change password",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/change-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "change-password"
+              ]
+            },
+            "description": "Changes the signed-in user's password. Requires the CURRENT password (not just a valid token) - returns 401 if it's wrong, or 409 if the new password is the same as the old one. There's no 'forgot password' / email-reset flow yet (that's a separate, later piece of work) - this only covers a logged-in user who remembers their current password but wants to change it.\n\nThe test script below swaps {{testPassword}} and {{testNewPassword}} on success, so you can run this request repeatedly (e.g. re-run the whole collection) without the saved credentials going stale.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{testPassword}}\",\n  \"newPassword\": \"{{testNewPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const oldPassword = pm.collectionVariables.get(\"testPassword\");",
+                  "    const newPassword = pm.collectionVariables.get(\"testNewPassword\");",
+                  "    pm.collectionVariables.set(\"testPassword\", newPassword);",
+                  "    pm.collectionVariables.set(\"testNewPassword\", oldPassword);",
+                  "    console.log(\"Password changed - testPassword/testNewPassword swapped so the next run still works.\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Log out",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Stateless JWT - this is just a consistent endpoint; it doesn't invalidate the token."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Catalog",
+      "item": [
+        {
+          "name": "List categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "List brands",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/brands",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "brands"
+              ],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "{{categorySlug}}",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Optional ?category=<slug> to narrow to one category's brands.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Listings",
+      "item": [
+        {
+          "name": "Search listings (browse)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/listings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "listings"
+              ],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "brand",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "condition",
+                  "value": "Used - Good",
+                  "disabled": true
+                },
+                {
+                  "key": "minPrice",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "maxPrice",
+                  "value": "5000",
+                  "disabled": true
+                },
+                {
+                  "key": "location",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "q",
+                  "value": "earbud",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "All filters are optional/disabled by default - enable the ones you want to test. `brand` filters by catalog brand SLUG (most listings won't have one); `q` does a free-text contains match across brand/product/model/part/description.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Featured listings (homepage)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/listings/featured",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "listings",
+                "featured"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "8",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Match listings (I Need search)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/listings/match?brandName=Sony&productName=WF-1000XM4&partName=Right%20Earbud",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "listings",
+                "match"
+              ],
+              "query": [
+                {
+                  "key": "brandName",
+                  "value": "Sony"
+                },
+                {
+                  "key": "productName",
+                  "value": "WF-1000XM4"
+                },
+                {
+                  "key": "modelLabel",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "partName",
+                  "value": "Right Earbud"
+                }
+              ]
+            },
+            "description": "Exact (case-insensitive) match on brandName + productName + partName (+ modelLabel if given). Mirrors the /need page's search.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Get listing by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/listings/{{listingId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "listings",
+                "{{listingId}}"
+              ]
+            },
+            "description": "Uses {{listingId}}, saved automatically after 'Create listing' below.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Create listing",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/listings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "listings"
+              ]
+            },
+            "description": "Requires {{accessToken}} (log in first). condition must be one of: New, Like New, Used - Working, Used - Good, Used - Fair, For Parts. Saves the new id as {{listingId}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"brandName\": \"Sony\",\n  \"productName\": \"WF-1000XM4\",\n  \"modelLabel\": \"\",\n  \"partName\": \"Right Earbud\",\n  \"condition\": \"Used - Good\",\n  \"price\": 1500,\n  \"currency\": \"INR\",\n  \"description\": \"Right earbud only, works fine, minor scuffs.\",\n  \"location\": \"Bengaluru, KA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    const data = pm.response.json();",
+                  "    const value = data && data.id;",
+                  "    if (value) {",
+                  "        pm.collectionVariables.set(\"listingId\", value);",
+                  "        console.log(\"Saved listingId =\", value);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update listing status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/listings/{{listingId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "listings",
+                "{{listingId}}",
+                "status"
+              ]
+            },
+            "description": "status: active | sold | removed. Only the listing's own seller can do this - the backend returns 403 otherwise.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"sold\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete listing",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/listings/{{listingId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "listings",
+                "{{listingId}}"
+              ]
+            },
+            "description": "Only the listing's own seller can do this."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Contact",
+      "item": [
+        {
+          "name": "Contact seller about a listing",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/listings/{{listingId}}/contact",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "listings",
+                "{{listingId}}",
+                "contact"
+              ]
+            },
+            "description": "Requires {{accessToken}}. 404 if the listing doesn't exist.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Hi! Is this still available?\",\n  \"contactInfo\": \"WhatsApp: 98xxxxxxxx\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Need Requests",
+      "item": [
+        {
+          "name": "Create need request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/need-requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "need-requests"
+              ]
+            },
+            "description": "Requires {{accessToken}}. Saves the new id as {{needRequestId}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"brandName\": \"Sony\",\n  \"productName\": \"WF-1000XM4\",\n  \"modelLabel\": \"\",\n  \"partName\": \"Right Earbud\",\n  \"description\": \"Lost mine, just need the right bud.\",\n  \"location\": \"Bengaluru, KA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    const data = pm.response.json();",
+                  "    const value = data && data.id;",
+                  "    if (value) {",
+                  "        pm.collectionVariables.set(\"needRequestId\", value);",
+                  "        console.log(\"Saved needRequestId =\", value);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Match need requests (seller side)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/need-requests/match?brandName=Sony&productName=WF-1000XM4&partName=Right%20Earbud",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "need-requests",
+                "match"
+              ],
+              "query": [
+                {
+                  "key": "brandName",
+                  "value": "Sony"
+                },
+                {
+                  "key": "productName",
+                  "value": "WF-1000XM4"
+                },
+                {
+                  "key": "modelLabel",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "partName",
+                  "value": "Right Earbud"
+                }
+              ]
+            },
+            "description": "Shown right after publishing a matching listing - 'N people are looking for exactly this part.'",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Update need request status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/need-requests/{{needRequestId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "need-requests",
+                "{{needRequestId}}",
+                "status"
+              ]
+            },
+            "description": "status: open | matched | closed. Only the request's own owner can do this.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"closed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete need request",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/need-requests/{{needRequestId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "need-requests",
+                "{{needRequestId}}"
+              ]
+            },
+            "description": "Only the request's own owner can do this."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Profile",
+      "item": [
+        {
+          "name": "Get my profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/profile/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "profile",
+                "me"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Update my profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/profile/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "profile",
+                "me"
+              ]
+            },
+            "description": " phone is optional and loosely validated (digits, spaces, +, (), - ; 6-20 chars).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"New Display Name\",\n  \"location\": \"Mumbai, MH\",\n  \"phone\": \"+91 98xxxxxxxx\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "My listings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/profile/me/listings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "profile",
+                "me",
+                "listings"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "My need requests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/profile/me/need-requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "profile",
+                "me",
+                "need-requests"
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "Uploads",
+      "item": [
+        {
+          "name": "Upload listing image (stub)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/uploads/listing-image",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "uploads",
+                "listing-image"
+              ]
+            },
+            "description": "Intentionally returns 501 Not Implemented until real S3/R2 storage is wired up - see UploadsService. This request exists so you can see that response, not to actually store a file.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

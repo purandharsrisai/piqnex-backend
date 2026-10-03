@@ -7,8 +7,10 @@ const PROFILE_SELECT = {
   email: true,
   displayName: true,
   location: true,
+  phone: true,
   avatarUrl: true,
   isAdmin: true,
+  role: true,
   createdAt: true,
 } as const;
 
@@ -29,6 +31,7 @@ export class ProfileService {
       data: {
         displayName: dto.displayName,
         location: dto.location,
+        phone: dto.phone,
       },
       select: PROFILE_SELECT,
     });

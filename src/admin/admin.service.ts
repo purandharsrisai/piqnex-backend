@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PAGE_SIZE } from '../common/dto/pagination-query.dto';
 import { NeedRequestStatus } from '../need-requests/need-request.constants';
@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ListingStatus } from '../listings/listing.constants';
 import { CreateBrandDto } from './dto/create-brand.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import type { AdminRoleAssignment } from './admin.constants';
 
 // Postgres error code for a foreign-key violation - thrown when deleting a
 // category/brand that a product still references (`on delete restrict` in
@@ -76,9 +77,45 @@ export class AdminService {
         displayName: true,
         location: true,
         isAdmin: true,
+        role: true,
         createdAt: true,
       },
       orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * Sets a user's admin role. 'NONE' revokes admin access entirely
+   * (isAdmin=false, role=null); 'ADMIN'/'MODERATOR' grants it
+   * (isAdmin=true, role=<that value>) - the two columns are always kept in
+   * sync here so AdminGuard (isAdmin) and RolesGuard (role) never disagree.
+   *
+   * An admin can't change their OWN role - a simple guard against someone
+   * accidentally demoting themselves (or revoking their own access) and
+   * getting locked out, with no one else able to undo it from the UI.
+   */
+  setUserRole(
+    userId: string,
+    role: AdminRoleAssignment,
+    actingAdminId: string,
+  ) {
+    if (userId === actingAdminId) {
+      throw new BadRequestException('You cannot change your own role');
+    }
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data:
+        role === 'NONE'
+          ? { isAdmin: false, role: null }
+          : { isAdmin: true, role },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        isAdmin: true,
+        role: true,
+      },
     });
   }
 

@@ -8,6 +8,7 @@ describe('SignupDto', () => {
       email: 'seller@example.com',
       password: 'correct-horse-battery-staple',
       displayName: 'Priya',
+      phone: '+91 9876543210',
     });
 
     const errors = await validate(dto);
@@ -19,6 +20,7 @@ describe('SignupDto', () => {
       email: 'not-an-email',
       password: 'correct-horse-battery-staple',
       displayName: 'Priya',
+      phone: '+91 9876543210',
     });
 
     const errors = await validate(dto);
@@ -30,6 +32,7 @@ describe('SignupDto', () => {
       email: 'seller@example.com',
       password: 'short',
       displayName: 'Priya',
+      phone: '+91 9876543210',
     });
 
     const errors = await validate(dto);
@@ -41,9 +44,33 @@ describe('SignupDto', () => {
       email: 'seller@example.com',
       password: 'correct-horse-battery-staple',
       displayName: '',
+      phone: '+91 9876543210',
     });
 
     const errors = await validate(dto);
     expect(errors.some((e) => e.property === 'displayName')).toBe(true);
+  });
+
+  it('rejects a missing phone number', async () => {
+    const dto = plainToInstance(SignupDto, {
+      email: 'seller@example.com',
+      password: 'correct-horse-battery-staple',
+      displayName: 'Priya',
+    });
+
+    const errors = await validate(dto);
+    expect(errors.some((e) => e.property === 'phone')).toBe(true);
+  });
+
+  it('rejects an obviously invalid phone number', async () => {
+    const dto = plainToInstance(SignupDto, {
+      email: 'seller@example.com',
+      password: 'correct-horse-battery-staple',
+      displayName: 'Priya',
+      phone: 'call me maybe',
+    });
+
+    const errors = await validate(dto);
+    expect(errors.some((e) => e.property === 'phone')).toBe(true);
   });
 });
