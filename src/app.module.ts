@@ -12,6 +12,7 @@ import { NeedRequestsModule } from './need-requests/need-requests.module';
 import { ContactModule } from './contact/contact.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { AdminModule } from './admin/admin.module';
+import { ReviewsModule } from './reviews/reviews.module';
 import { SavedModule } from './saved/saved.module';
 import { MailModule } from './mail/mail.module';
 import { SafetyModule } from './safety/safety.module';
@@ -33,6 +34,7 @@ import { MessagesModule } from './messages/messages.module';
     SafetyModule,
     MailModule,
     SavedModule,
+    ReviewsModule,
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 10 }]),
   ],
   controllers: [AppController],

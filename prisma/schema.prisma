@@ -61,6 +61,8 @@ model User {
   blocksMade          Block[]  @relation("BlockBlocker")
   blocksReceived      Block[]  @relation("BlockBlocked")
   savedListings       SavedListing[]
+  reviewsGiven        Review[] @relation("ReviewAuthor")
+  reviewsReceived     Review[] @relation("ReviewSeller")
 
   @@map("users")
 }
@@ -244,6 +246,7 @@ model Listing {
   contactRequests ContactRequest[]
   conversations   Conversation[]
   savedBy         SavedListing[]
+  reviews         Review[]
 
   @@index([sellerId])
   @@index([status])
@@ -400,4 +403,27 @@ model SavedListing {
   @@id([userId, listingId])
   @@index([userId, createdAt(sort: Desc)])
   @@map("saved_listings")
+}
+
+// ----------------------------------------------------------------------------
+// 10. REVIEWS (buyer -> seller, one per listing; only people who messaged the
+//     seller about that listing can leave one)
+// ----------------------------------------------------------------------------
+model Review {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  listingId  String   @map("listing_id") @db.Uuid
+  reviewerId String   @map("reviewer_id") @db.Uuid
+  sellerId   String   @map("seller_id") @db.Uuid
+  /// 1-5
+  rating     Int
+  comment    String   @default("")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  listing  Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  reviewer User    @relation("ReviewAuthor", fields: [reviewerId], references: [id], onDelete: Cascade)
+  seller   User    @relation("ReviewSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, reviewerId])
+  @@index([sellerId, createdAt(sort: Desc)])
+  @@map("reviews")
 }
