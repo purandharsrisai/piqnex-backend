@@ -197,7 +197,7 @@ export class AuthService {
     return { message: 'Password updated' };
   }
 
-  private buildAuthResponse(user: UserRecord) {
+  buildAuthResponse(user: UserRecord) {
     const accessToken = this.jwtService.sign({
       sub: user.id,
       email: user.email,
