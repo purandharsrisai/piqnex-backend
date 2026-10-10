@@ -54,6 +54,13 @@ model User {
   needRequests        NeedRequest[]
   contactRequests     ContactRequest[]
   passwordResetTokens PasswordResetToken[]
+  buyerConversations  Conversation[] @relation("ConversationBuyer")
+  sellerConversations Conversation[] @relation("ConversationSeller")
+  sentMessages        Message[]
+  reportsMade         Report[] @relation("ReportReporter")
+  blocksMade          Block[]  @relation("BlockBlocker")
+  blocksReceived      Block[]  @relation("BlockBlocked")
+  savedListings       SavedListing[]
 
   @@map("users")
 }
@@ -235,6 +242,8 @@ model Listing {
 
   images          ListingImage[]
   contactRequests ContactRequest[]
+  conversations   Conversation[]
+  savedBy         SavedListing[]
 
   @@index([sellerId])
   @@index([status])
@@ -302,4 +311,93 @@ model ContactRequest {
   @@index([listingId])
   @@index([buyerId])
   @@map("contact_requests")
+}
+
+// ----------------------------------------------------------------------------
+// 7. CONVERSATIONS & MESSAGES (buyer <-> seller inbox, one thread per
+//    listing + buyer). Read state is tracked per side with a timestamp.
+// ----------------------------------------------------------------------------
+model Conversation {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  listingId      String    @map("listing_id") @db.Uuid
+  buyerId        String    @map("buyer_id") @db.Uuid
+  sellerId       String    @map("seller_id") @db.Uuid
+  lastMessageAt  DateTime  @default(now()) @map("last_message_at")
+  buyerReadAt    DateTime? @map("buyer_read_at")
+  sellerReadAt   DateTime? @map("seller_read_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  listing Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  buyer   User      @relation("ConversationBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller  User      @relation("ConversationSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([listingId, buyerId])
+  @@index([buyerId, lastMessageAt(sort: Desc)])
+  @@index([sellerId, lastMessageAt(sort: Desc)])
+  @@map("conversations")
+}
+
+model Message {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  senderId       String   @map("sender_id") @db.Uuid
+  body           String
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+// ----------------------------------------------------------------------------
+// 8. SAFETY: reports (listing or user) and blocks
+// ----------------------------------------------------------------------------
+model Report {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporterId   String   @map("reporter_id") @db.Uuid
+  /// 'listing' | 'user'
+  targetType   String   @map("target_type")
+  targetId     String   @map("target_id") @db.Uuid
+  /// 'spam' | 'scam' | 'prohibited' | 'inappropriate' | 'other'
+  reason       String
+  details      String?
+  /// 'open' | 'resolved' | 'dismissed'
+  status       String   @default("open")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  reporter User @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt(sort: Desc)])
+  @@map("reports")
+}
+
+model Block {
+  blockerId String   @map("blocker_id") @db.Uuid
+  blockedId String   @map("blocked_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  blocker User @relation("BlockBlocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("BlockBlocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@map("blocks")
+}
+
+// ----------------------------------------------------------------------------
+// 9. SAVED LISTINGS (favourites)
+// ----------------------------------------------------------------------------
+model SavedListing {
+  userId    String   @map("user_id") @db.Uuid
+  listingId String   @map("listing_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@id([userId, listingId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("saved_listings")
 }

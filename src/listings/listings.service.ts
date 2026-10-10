@@ -5,7 +5,10 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PAGE_SIZE } from '../common/dto/pagination-query.dto';
+import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SafetyService } from '../safety/safety.service';
+import { UpdateListingDto } from './dto/update-listing.dto';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { MatchListingsQueryDto } from './dto/match-listings-query.dto';
 import { SearchListingsQueryDto } from './dto/search-listings-query.dto';
@@ -15,7 +18,11 @@ const LISTING_IMAGES_ORDER = { orderBy: { sortOrder: 'asc' as const } };
 
 @Injectable()
 export class ListingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+    private readonly safety: SafetyService,
+  ) {}
 
   /**
    * GET /listings - browse/search with filters + pagination.
@@ -68,7 +75,12 @@ export class ListingsService {
       this.prisma.listing.findMany({
         where,
         include: { images: LISTING_IMAGES_ORDER },
-        orderBy: { createdAt: 'desc' },
+        orderBy:
+          query.sort === 'price_asc'
+            ? [{ price: 'asc' }, { createdAt: 'desc' }]
+            : query.sort === 'price_desc'
+              ? [{ price: 'desc' }, { createdAt: 'desc' }]
+              : { createdAt: 'desc' },
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
       }),
@@ -126,8 +138,8 @@ export class ListingsService {
     return listing;
   }
 
-  create(sellerId: string, dto: CreateListingDto) {
-    return this.prisma.listing.create({
+  async create(sellerId: string, dto: CreateListingDto) {
+    const listing = await this.prisma.listing.create({
       data: {
         sellerId,
         categoryId: dto.categoryId,
@@ -154,6 +166,72 @@ export class ListingsService {
           : undefined,
       },
       include: { images: LISTING_IMAGES_ORDER },
+    });
+    // Fire-and-forget: tell people who asked for this exact part.
+    void this.notifyNeedRequesters(listing).catch(() => undefined);
+    return listing;
+  }
+
+  /** Emails the owners of open need requests that match a new listing. */
+  private async notifyNeedRequesters(listing: {
+    id: string;
+    sellerId: string;
+    brandName: string;
+    productName: string;
+    modelLabel: string | null;
+    partName: string;
+  }) {
+    const requests = await this.prisma.needRequest.findMany({
+      where: {
+        status: 'open',
+        requesterId: { not: listing.sellerId },
+        brandName: { equals: listing.brandName, mode: 'insensitive' },
+        productName: { equals: listing.productName, mode: 'insensitive' },
+        partName: { equals: listing.partName, mode: 'insensitive' },
+        ...(listing.modelLabel
+          ? {
+              OR: [
+                { modelLabel: null },
+                { modelLabel: { equals: listing.modelLabel, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
+      include: { requester: { select: { email: true } } },
+    });
+    const sent = new Set<string>();
+    for (const r of requests) {
+      if (sent.has(r.requesterId)) continue;
+      if (await this.safety.isBlockedEitherWay(r.requesterId, listing.sellerId)) continue;
+      sent.add(r.requesterId);
+      await this.mail.sendPartAlert(
+        r.requester.email,
+        `${listing.brandName} ${listing.productName}`,
+        listing.partName,
+        listing.id,
+      );
+    }
+  }
+
+  async update(id: string, sellerId: string, dto: UpdateListingDto) {
+    await this.assertOwner(id, sellerId);
+    const { imagePaths, ...fields } = dto;
+    return this.prisma.$transaction(async (tx) => {
+      if (imagePaths) {
+        await tx.listingImage.deleteMany({ where: { listingId: id } });
+        await tx.listingImage.createMany({
+          data: imagePaths.map((storagePath, sortOrder) => ({
+            listingId: id,
+            storagePath,
+            sortOrder,
+          })),
+        });
+      }
+      return tx.listing.update({
+        where: { id },
+        data: fields,
+        include: { images: LISTING_IMAGES_ORDER },
+      });
     });
   }
 

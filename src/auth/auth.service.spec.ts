@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import { AuthService } from './auth.service';
 
 // NOTE: this suite needs `@prisma/client`'s generated types to exist
@@ -28,6 +29,10 @@ describe('AuthService', () => {
       providers: [
         AuthService,
         { provide: PrismaService, useValue: prismaMock },
+        {
+          provide: MailService,
+          useValue: { isLive: false, sendPasswordReset: jest.fn() },
+        },
         {
           provide: JwtService,
           useValue: { sign: jest.fn().mockReturnValue('signed.jwt.token') },

@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
@@ -35,6 +36,19 @@ export class ProfileService {
       },
       select: PROFILE_SELECT,
     });
+  }
+
+  /** Permanently deletes the account; all owned rows cascade (listings, messages, ...). */
+  async deleteMe(userId: string, password: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { passwordHash: true, isAdmin: true },
+    });
+    if (!(await bcrypt.compare(password, user.passwordHash))) {
+      throw new UnauthorizedException('Password does not match our records');
+    }
+    await this.prisma.user.delete({ where: { id: userId } });
+    return { deleted: true };
   }
 
   getMyListings(userId: string) {
