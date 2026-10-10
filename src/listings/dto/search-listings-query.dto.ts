@@ -23,5 +23,9 @@ export class SearchListingsQueryDto {
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) maxPrice?: number;
   @IsOptional() @IsString() location?: string;
 
+  @IsOptional()
+  @IsIn(['newest', 'price_asc', 'price_desc'])
+  sort?: 'newest' | 'price_asc' | 'price_desc';
+
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
 }

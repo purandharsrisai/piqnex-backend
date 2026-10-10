@@ -18,6 +18,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { MatchListingsQueryDto } from './dto/match-listings-query.dto';
 import { SearchListingsQueryDto } from './dto/search-listings-query.dto';
+import { UpdateListingDto } from './dto/update-listing.dto';
 import { UpdateListingStatusDto } from './dto/update-listing-status.dto';
 import { ListingsService } from './listings.service';
 
@@ -52,6 +53,16 @@ export class ListingsController {
     @Body() dto: CreateListingDto,
   ) {
     return this.listingsService.create(user.id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id')
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateListingDto,
+  ) {
+    return this.listingsService.update(id, user.id, dto);
   }
 
   @UseGuards(JwtAuthGuard)

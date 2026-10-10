@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { MailService } from '../mail/mail.service';
 import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -38,6 +39,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly mail: MailService,
   ) {}
 
   async signup(dto: SignupDto) {
@@ -153,7 +155,12 @@ export class AuthService {
     // this. When email sending is added, stop returning resetToken here and
     // email it to dto.email instead - the hashing, expiry and single-use
     // checks below already work correctly either way.
-    return { message: genericMessage, resetToken: token };
+    await this.mail.sendPasswordReset(user.email, token);
+    // With a live mail provider the token travels only by email. In dev
+    // (console provider) it's still returned so the flow works locally.
+    return this.mail.isLive
+      ? { message: genericMessage }
+      : { message: genericMessage, resetToken: token };
   }
 
   async resetPassword(dto: ResetPasswordDto) {
