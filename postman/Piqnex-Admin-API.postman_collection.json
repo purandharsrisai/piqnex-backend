@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "5a21fe18-797d-48ed-b2e2-eb92d7a879df",
     "name": "Piqnex Admin API",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "piqnex-backend (NestJS + Prisma) - the Admin Dashboard's API only: its own dedicated login (independent of the regular user login), moderating listings/need requests, managing users and their roles, and managing the categories/brands catalog.\n\nThis used to be one folder inside a combined collection together with the regular user-facing endpoints (see Piqnex-User-API.postman_collection.json for those - split out on 2026-10-03 so the two APIs can be versioned and maintained independently; see each collection's own CHANGELOG for history before and after the split).\n\nEvery request here needs {{accessToken}} to belong to a user with is_admin = true. There's no API to promote a user - after signing up (via the User API collection), set it directly in the DB, e.g.:\n\nUPDATE users SET is_admin = true, role = 'ADMIN' WHERE email = 'you@example.com';\n\n(or `npx prisma studio` -> users table - role is 'ADMIN' or 'MODERATOR'). Then run 'Auth > Admin Login' (POST /admin/auth/login) - it automatically saves {{accessToken}} the same way the User API's 'Log in' does, and every other request here already uses Bearer {{accessToken}} at the collection level.\n\nTwo admin roles, both gated by is_admin = true but split further by the role column:\n- ADMIN: everything in this collection.\n- MODERATOR: only the Listings and Need Requests folders - Users & Roles and every Catalog request return 403 for a Moderator (see RolesGuard / @Roles('ADMIN') in admin.controller.ts).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -64,6 +64,16 @@
     },
     {
       "key": "brandId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "supportMessageId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reportId",
       "value": "",
       "type": "string"
     }
@@ -149,7 +159,7 @@
                 "overview"
               ]
             },
-            "description": ""
+            "description": "Also returns openReports (reports still waiting for review) and newSupportMessages (Contact Us messages not yet marked handled)."
           }
         }
       ]
@@ -297,6 +307,149 @@
               ]
             },
             "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Reports queue",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/reports?status=open",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "reports?status=open"
+              ]
+            },
+            "description": "Reports of listings and users, newest first (latest 100). `status` is optional: `open`, `resolved` or `dismissed`. Each report includes the reporter and the reported listing or user. Open to Admins and Moderators. Saves the first report's id as {{reportId}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const data = pm.response.json();",
+                  "    const first = (data.items || data)[0];",
+                  "    if (first) { pm.collectionVariables.set(\"reportId\", first.id); console.log(\"Saved reportId\"); }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Set report status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/reports/{{reportId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "reports",
+                "{{reportId}}"
+              ]
+            },
+            "description": "Set a report to `open`, `resolved` or `dismissed`. Open to Admins and Moderators.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"resolved\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Contact Us inbox",
+      "item": [
+        {
+          "name": "Contact Us messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/support-messages?page=1&status=new",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "support-messages?page=1&status=new"
+              ]
+            },
+            "description": "Messages sent from the website's Contact Us form, newest first, 20 per page. `status` is optional: `new` or `handled` (leave it out for all). Open to Admins and Moderators. Saves the first message's id as {{supportMessageId}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const data = pm.response.json();",
+                  "    const first = (data.items || data)[0];",
+                  "    if (first) { pm.collectionVariables.set(\"supportMessageId\", first.id); console.log(\"Saved supportMessageId\"); }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Set Contact Us message status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/support-messages/{{supportMessageId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "support-messages",
+                "{{supportMessageId}}",
+                "status"
+              ]
+            },
+            "description": "Mark a message `handled` once you've replied, or back to `new`. Open to Admins and Moderators. 404 if the id doesn't exist.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"handled\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         }
       ]

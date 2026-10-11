@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PAGE_SIZE } from '../common/dto/pagination-query.dto';
 import { NeedRequestStatus } from '../need-requests/need-request.constants';
@@ -7,6 +12,7 @@ import { ListingStatus } from '../listings/listing.constants';
 import { CreateBrandDto } from './dto/create-brand.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import type { AdminRoleAssignment } from './admin.constants';
+import type { SupportMessageStatus } from '../support/dto/support-message-status.dto';
 
 // Postgres error code for a foreign-key violation - thrown when deleting a
 // category/brand that a product still references (`on delete restrict` in
@@ -18,14 +24,56 @@ export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getOverview() {
-    const [totalListings, activeListings, openNeedRequests, users] =
-      await Promise.all([
-        this.prisma.listing.count(),
-        this.prisma.listing.count({ where: { status: 'active' } }),
-        this.prisma.needRequest.count({ where: { status: 'open' } }),
-        this.prisma.user.count(),
-      ]);
-    return { totalListings, activeListings, openNeedRequests, users };
+    const [
+      totalListings,
+      activeListings,
+      openNeedRequests,
+      users,
+      openReports,
+      newSupportMessages,
+    ] = await Promise.all([
+      this.prisma.listing.count(),
+      this.prisma.listing.count({ where: { status: 'active' } }),
+      this.prisma.needRequest.count({ where: { status: 'open' } }),
+      this.prisma.user.count(),
+      this.prisma.report.count({ where: { status: 'open' } }),
+      this.prisma.supportMessage.count({ where: { status: 'new' } }),
+    ]);
+    return {
+      totalListings,
+      activeListings,
+      openNeedRequests,
+      users,
+      openReports,
+      newSupportMessages,
+    };
+  }
+
+  /** Contact Us inbox, newest first. Optional status filter ('new' | 'handled'). */
+  async getSupportMessages(page = 1, status?: SupportMessageStatus) {
+    const where = status ? { status } : {};
+    const [items, total] = await Promise.all([
+      this.prisma.supportMessage.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
+      }),
+      this.prisma.supportMessage.count({ where }),
+    ]);
+    return { items, total, page, pageSize: PAGE_SIZE };
+  }
+
+  async setSupportMessageStatus(id: string, status: SupportMessageStatus) {
+    const existing = await this.prisma.supportMessage.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!existing) throw new NotFoundException('Message not found');
+    return this.prisma.supportMessage.update({
+      where: { id },
+      data: { status },
+    });
   }
 
   async getAllListings(page = 1) {

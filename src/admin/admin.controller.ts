@@ -21,6 +21,10 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { UpdateListingStatusDto } from '../listings/dto/update-listing-status.dto';
 import { UpdateNeedRequestStatusDto } from '../need-requests/dto/update-need-request-status.dto';
+import {
+  SupportMessagesQueryDto,
+  UpdateSupportMessageStatusDto,
+} from '../support/dto/support-message-status.dto';
 import { AdminService } from './admin.service';
 import { CreateBrandDto } from './dto/create-brand.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -34,6 +38,21 @@ export class AdminController {
   @Get('overview')
   overview() {
     return this.adminService.getOverview();
+  }
+
+  // Contact Us inbox - open to Admins and Moderators.
+  @Get('support-messages')
+  supportMessages(@Query() query: SupportMessagesQueryDto) {
+    return this.adminService.getSupportMessages(query.page, query.status);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Patch('support-messages/:id/status')
+  setSupportMessageStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateSupportMessageStatusDto,
+  ) {
+    return this.adminService.setSupportMessageStatus(id, dto.status);
   }
 
   @Get('listings')

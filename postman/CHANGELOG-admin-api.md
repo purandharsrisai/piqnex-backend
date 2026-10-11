@@ -8,6 +8,16 @@ its own collection and its own changelog now - see
 
 ---
 
+## Version 1.1.0 — 2026-10-13, 12:00 UTC
+
+**Changes made:**
+"Overview counts" now also returns `openReports` and `newSupportMessages`.
+
+**Newly added:**
+New "Reports" folder: "Reports queue" (`GET /admin/reports`, optional `status` filter) and "Set report status" (`PATCH /admin/reports/:id`) - these endpoints already existed but were not in the collection. New "Contact Us inbox" folder: "Contact Us messages" (`GET /admin/support-messages`, optional `status` filter, paged) and "Set Contact Us message status" (`PATCH /admin/support-messages/:id/status`). All four are open to Admins and Moderators. New collection variables `reportId` and `supportMessageId` (saved automatically by the list requests).
+
+---
+
 ## Version 1.0.0 — 2026-10-03, 15:42 UTC
 
 **Changes made:**
