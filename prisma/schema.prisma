@@ -42,6 +42,9 @@ model User {
   /// column (not a native Postgres enum), matching every other status-like
   /// field in this schema (Listing.status, NeedRequest.status, ...).
   role         String?
+  /// One of: 'active' | 'suspended' (see admin/admin.constants.ts). A
+  /// suspended user can't log in and their existing tokens stop working.
+  status       String   @default("active")
   createdAt    DateTime @default(now()) @map("created_at")
 
   listings            Listing[]

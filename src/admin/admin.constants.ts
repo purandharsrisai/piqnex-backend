@@ -13,3 +13,8 @@ export type AdminRole = (typeof ADMIN_ROLES)[number];
 // isAdmin=false and role=null).
 export const ADMIN_ROLE_ASSIGNMENTS = [...ADMIN_ROLES, 'NONE'] as const;
 export type AdminRoleAssignment = (typeof ADMIN_ROLE_ASSIGNMENTS)[number];
+
+// Account status. A 'suspended' user can't log in, and any token they
+// already hold stops working (see JwtStrategy.validate).
+export const USER_STATUSES = ['active', 'suspended'] as const;
+export type UserStatus = (typeof USER_STATUSES)[number];

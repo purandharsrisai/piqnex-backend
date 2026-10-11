@@ -1,7 +1,9 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -31,6 +33,7 @@ interface UserRecord {
   // 'ADMIN' | 'MODERATOR' | null - see admin/admin.constants.ts. Only
   // meaningful when isAdmin is true.
   role: string | null;
+  status?: string;
   passwordHash: string;
 }
 
@@ -84,6 +87,12 @@ export class AuthService {
     );
     if (!passwordMatches) {
       throw invalidCredentials();
+    }
+
+    if (user.status === 'suspended') {
+      throw new ForbiddenException(
+        'This account has been suspended. Please contact support.',
+      );
     }
 
     return this.buildAuthResponse(user);
@@ -161,6 +170,35 @@ export class AuthService {
     return this.mail.isLive
       ? { message: genericMessage }
       : { message: genericMessage, resetToken: token };
+  }
+
+  /**
+   * Admin-triggered reset: emails the user a normal reset link (same token,
+   * expiry and single-use rules as forgotPassword). Unlike forgotPassword it
+   * NEVER returns the token - the admin must not be able to use it - so the
+   * link only ever reaches the user's inbox (or, with no mail provider set
+   * up, the backend console in dev). `delivered` says whether a real email
+   * went out.
+   */
+  async sendPasswordResetForUser(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const token = randomBytes(32).toString('hex');
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    await this.prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+      },
+    });
+
+    await this.mail.sendPasswordReset(user.email, token);
+    return { email: user.email, delivered: this.mail.isLive };
   }
 
   async resetPassword(dto: ResetPasswordDto) {

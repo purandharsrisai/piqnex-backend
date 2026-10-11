@@ -18,7 +18,6 @@ import type { AuthenticatedUser } from '../auth/decorators/current-user.decorato
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { UpdateListingStatusDto } from '../listings/dto/update-listing-status.dto';
 import { UpdateNeedRequestStatusDto } from '../need-requests/dto/update-need-request-status.dto';
 import {
@@ -29,11 +28,17 @@ import { AdminService } from './admin.service';
 import { CreateBrandDto } from './dto/create-brand.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
+import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { AdminListQueryDto } from './dto/admin-list-query.dto';
+import { AuthService } from '../auth/auth.service';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, AdminGuard)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Get('overview')
   overview() {
@@ -46,6 +51,11 @@ export class AdminController {
     return this.adminService.getSupportMessages(query.page, query.status);
   }
 
+  @Get('support-messages/:id')
+  supportMessage(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getSupportMessage(id);
+  }
+
   @HttpCode(HttpStatus.OK)
   @Patch('support-messages/:id/status')
   setSupportMessageStatus(
@@ -56,8 +66,18 @@ export class AdminController {
   }
 
   @Get('listings')
-  listings(@Query() query: PaginationQueryDto) {
-    return this.adminService.getAllListings(query.page);
+  listings(@Query() query: AdminListQueryDto) {
+    return this.adminService.getAllListings(
+      query.page,
+      query.q,
+      query.status,
+      query.userId,
+    );
+  }
+
+  @Get('listings/:id')
+  listing(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getListingDetail(id);
   }
 
   @HttpCode(HttpStatus.OK)
@@ -70,8 +90,13 @@ export class AdminController {
   }
 
   @Get('need-requests')
-  needRequests(@Query() query: PaginationQueryDto) {
-    return this.adminService.getAllNeedRequests(query.page);
+  needRequests(@Query() query: AdminListQueryDto) {
+    return this.adminService.getAllNeedRequests(
+      query.page,
+      query.q,
+      query.status,
+      query.userId,
+    );
   }
 
   @HttpCode(HttpStatus.OK)
@@ -98,6 +123,34 @@ export class AdminController {
   @Get('users')
   users() {
     return this.adminService.getAllUsers();
+  }
+
+  @Roles('ADMIN')
+  @UseGuards(RolesGuard)
+  @Get('users/:id')
+  user(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getUserDetail(id);
+  }
+
+  @Roles('ADMIN')
+  @UseGuards(RolesGuard)
+  @HttpCode(HttpStatus.OK)
+  @Patch('users/:id/status')
+  setUserStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateUserStatusDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.adminService.setUserStatus(id, dto.status, actor.id);
+  }
+
+  // Emails the user a password reset link (never returns it to the admin).
+  @Roles('ADMIN')
+  @UseGuards(RolesGuard)
+  @HttpCode(HttpStatus.OK)
+  @Post('users/:id/password-reset')
+  sendPasswordReset(@Param('id', ParseUUIDPipe) id: string) {
+    return this.authService.sendPasswordResetForUser(id);
   }
 
   @Roles('ADMIN')

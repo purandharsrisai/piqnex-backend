@@ -47,7 +47,7 @@ export class AdminAuthService {
       throw invalidCredentials();
     }
 
-    if (!user.isAdmin) {
+    if (!user.isAdmin || user.status === 'suspended') {
       throw invalidCredentials();
     }
 

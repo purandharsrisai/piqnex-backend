@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "5a21fe18-797d-48ed-b2e2-eb92d7a879df",
     "name": "Piqnex Admin API",
-    "version": "1.1.0",
+    "version": "1.7.0",
     "description": "piqnex-backend (NestJS + Prisma) - the Admin Dashboard's API only: its own dedicated login (independent of the regular user login), moderating listings/need requests, managing users and their roles, and managing the categories/brands catalog.\n\nThis used to be one folder inside a combined collection together with the regular user-facing endpoints (see Piqnex-User-API.postman_collection.json for those - split out on 2026-10-03 so the two APIs can be versioned and maintained independently; see each collection's own CHANGELOG for history before and after the split).\n\nEvery request here needs {{accessToken}} to belong to a user with is_admin = true. There's no API to promote a user - after signing up (via the User API collection), set it directly in the DB, e.g.:\n\nUPDATE users SET is_admin = true, role = 'ADMIN' WHERE email = 'you@example.com';\n\n(or `npx prisma studio` -> users table - role is 'ADMIN' or 'MODERATOR'). Then run 'Auth > Admin Login' (POST /admin/auth/login) - it automatically saves {{accessToken}} the same way the User API's 'Log in' does, and every other request here already uses Bearer {{accessToken}} at the collection level.\n\nTwo admin roles, both gated by is_admin = true but split further by the role column:\n- ADMIN: everything in this collection.\n- MODERATOR: only the Listings and Need Requests folders - Users & Roles and every Catalog request return 403 for a Moderator (see RolesGuard / @Roles('ADMIN') in admin.controller.ts).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -74,6 +74,11 @@
     },
     {
       "key": "reportId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "targetUserId",
       "value": "",
       "type": "string"
     }
@@ -186,10 +191,47 @@
                   "key": "page",
                   "value": "1",
                   "disabled": true
+                },
+                {
+                  "key": "q",
+                  "value": "hinge",
+                  "disabled": true,
+                  "description": "Optional search text (part, brand, product, model or seller/requester name; case-insensitive)."
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "disabled": true,
+                  "description": "Optional status filter."
+                },
+                {
+                  "key": "userId",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Optional user id - only records where this user is the seller."
                 }
               ]
             },
-            "description": ""
+            "description": "Optional `q` (search) and `status` filters; `total` reflects the filtered count. Optional `userId` returns only that user's records (the seller)."
+          }
+        },
+        {
+          "name": "Listing details (all photos)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/listings/{{listingId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "listings",
+                "{{listingId}}"
+              ]
+            },
+            "description": "One listing with its seller (id, name, email, phone) and every photo (`images`, ordered by `sortOrder`). 404 if it doesn't exist. Open to Admins and Moderators. Uses the {{listingId}} collection variable."
           }
         },
         {
@@ -250,10 +292,28 @@
                   "key": "page",
                   "value": "1",
                   "disabled": true
+                },
+                {
+                  "key": "q",
+                  "value": "hinge",
+                  "disabled": true,
+                  "description": "Optional search text (part, brand, product, model or seller/requester name; case-insensitive)."
+                },
+                {
+                  "key": "status",
+                  "value": "open",
+                  "disabled": true,
+                  "description": "Optional status filter."
+                },
+                {
+                  "key": "userId",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Optional user id - only records where this user is the requester."
                 }
               ]
             },
-            "description": ""
+            "description": "Optional `q` (search) and `status` filters; `total` reflects the filtered count. Optional `userId` returns only that user's records (the requester)."
           }
         },
         {
@@ -419,6 +479,25 @@
           ]
         },
         {
+          "name": "Contact Us message details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/support-messages/{{supportMessageId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "support-messages",
+                "{{supportMessageId}}"
+              ]
+            },
+            "description": "One Contact Us message (name, email, topic, full message, status, createdAt). 404 if it doesn't exist. Open to Admins and Moderators. Uses {{supportMessageId}}."
+          }
+        },
+        {
           "name": "Set Contact Us message status",
           "request": {
             "method": "PATCH",
@@ -472,7 +551,7 @@
                 "users"
               ]
             },
-            "description": ""
+            "description": "Each row now also includes `status` ('active' | 'suspended'), `phone` and `avatarUrl`."
           }
         },
         {
@@ -514,6 +593,79 @@
                 }
               }
             }
+          }
+        },
+        {
+          "name": "User profile (admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{targetUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                "{{targetUserId}}"
+              ]
+            },
+            "description": "One user's full profile for the Admin Dashboard's user page: email, phone, location, bio, role, status, activity counts (`_count`: listings, needRequests, reportsMade, reviewsReceived), `reportsAgainst` (reports filed against this user), and their 5 latest listings (each with its first photo in `images`) and need requests. Admin only (403 for a Moderator); 404 if the user doesn't exist. Set the `targetUserId` collection variable first."
+          }
+        },
+        {
+          "name": "Set user status (suspend / reactivate)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{targetUserId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                "{{targetUserId}}",
+                "status"
+              ]
+            },
+            "description": "Suspends or reactivates an account. Body: `{ \"status\": \"suspended\" }` or `{ \"status\": \"active\" }`. A suspended user can't log in (403 from `POST /auth/login`, generic 401 from the admin login) and any token they already hold stops working on the next request. You can't suspend your own account (400). Admin only.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"suspended\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Send password reset email (admin)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{targetUserId}}/password-reset",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                "{{targetUserId}}",
+                "password-reset"
+              ]
+            },
+            "description": "Emails the user a normal password reset link (same token, 1-hour expiry and single-use rules as `POST /auth/forgot-password`). The link is NEVER returned to the admin - only `{ email, delivered }`, where `delivered` is false when no mail provider is configured (the link is then printed in the backend console in dev). 404 if the user doesn't exist. Admin only (403 for a Moderator). Set the `targetUserId` collection variable first."
           }
         }
       ]

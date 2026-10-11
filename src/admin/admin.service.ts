@@ -11,7 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ListingStatus } from '../listings/listing.constants';
 import { CreateBrandDto } from './dto/create-brand.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
-import type { AdminRoleAssignment } from './admin.constants';
+import type { AdminRoleAssignment, UserStatus } from './admin.constants';
 import type { SupportMessageStatus } from '../support/dto/support-message-status.dto';
 
 // Postgres error code for a foreign-key violation - thrown when deleting a
@@ -64,6 +64,14 @@ export class AdminService {
     return { items, total, page, pageSize: PAGE_SIZE };
   }
 
+  async getSupportMessage(id: string) {
+    const message = await this.prisma.supportMessage.findUnique({
+      where: { id },
+    });
+    if (!message) throw new NotFoundException('Message not found');
+    return message;
+  }
+
   async setSupportMessageStatus(id: string, status: SupportMessageStatus) {
     const existing = await this.prisma.supportMessage.findUnique({
       where: { id },
@@ -76,9 +84,30 @@ export class AdminService {
     });
   }
 
-  async getAllListings(page = 1) {
+  async getAllListings(
+    page = 1,
+    q?: string,
+    status?: string,
+    userId?: string,
+  ) {
+    const where: Prisma.ListingWhereInput = {
+      ...(status ? { status } : {}),
+      ...(userId ? { sellerId: userId } : {}),
+      ...(q
+        ? {
+            OR: [
+              { brandName: { contains: q, mode: 'insensitive' } },
+              { productName: { contains: q, mode: 'insensitive' } },
+              { modelLabel: { contains: q, mode: 'insensitive' } },
+              { partName: { contains: q, mode: 'insensitive' } },
+              { seller: { displayName: { contains: q, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    };
     const [items, total] = await Promise.all([
       this.prisma.listing.findMany({
+        where,
         include: {
           seller: { select: { id: true, displayName: true } },
           images: { orderBy: { sortOrder: 'asc' }, take: 1 },
@@ -87,24 +116,61 @@ export class AdminService {
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
       }),
-      this.prisma.listing.count(),
+      this.prisma.listing.count({ where }),
     ]);
     return { items, total, page, pageSize: PAGE_SIZE };
+  }
+
+  async getListingDetail(id: string) {
+    const listing = await this.prisma.listing.findUnique({
+      where: { id },
+      include: {
+        seller: {
+          select: { id: true, displayName: true, email: true, phone: true },
+        },
+        images: { orderBy: { sortOrder: 'asc' } },
+      },
+    });
+    if (!listing) throw new NotFoundException('Listing not found');
+    return listing;
   }
 
   setListingStatus(id: string, status: ListingStatus) {
     return this.prisma.listing.update({ where: { id }, data: { status } });
   }
 
-  async getAllNeedRequests(page = 1) {
+  async getAllNeedRequests(
+    page = 1,
+    q?: string,
+    status?: string,
+    userId?: string,
+  ) {
+    const where: Prisma.NeedRequestWhereInput = {
+      ...(status ? { status } : {}),
+      ...(userId ? { requesterId: userId } : {}),
+      ...(q
+        ? {
+            OR: [
+              { brandName: { contains: q, mode: 'insensitive' } },
+              { productName: { contains: q, mode: 'insensitive' } },
+              { modelLabel: { contains: q, mode: 'insensitive' } },
+              { partName: { contains: q, mode: 'insensitive' } },
+              {
+                requester: { displayName: { contains: q, mode: 'insensitive' } },
+              },
+            ],
+          }
+        : {}),
+    };
     const [items, total] = await Promise.all([
       this.prisma.needRequest.findMany({
+        where,
         include: { requester: { select: { id: true, displayName: true } } },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
       }),
-      this.prisma.needRequest.count(),
+      this.prisma.needRequest.count({ where }),
     ]);
     return { items, total, page, pageSize: PAGE_SIZE };
   }
@@ -126,9 +192,98 @@ export class AdminService {
         location: true,
         isAdmin: true,
         role: true,
+        status: true,
+        phone: true,
+        avatarUrl: true,
         createdAt: true,
       },
       orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** One user's full profile plus activity counts and their latest listings/requests. */
+  async getUserDetail(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        location: true,
+        phone: true,
+        avatarUrl: true,
+        bio: true,
+        isAdmin: true,
+        role: true,
+        status: true,
+        createdAt: true,
+        _count: {
+          select: {
+            listings: true,
+            needRequests: true,
+            reportsMade: true,
+            reviewsReceived: true,
+          },
+        },
+        listings: {
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          select: {
+            id: true,
+            brandName: true,
+            productName: true,
+            partName: true,
+            price: true,
+            status: true,
+            createdAt: true,
+            images: {
+              orderBy: { sortOrder: 'asc' },
+              take: 1,
+              select: { storagePath: true, sortOrder: true },
+            },
+          },
+        },
+        needRequests: {
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          select: {
+            id: true,
+            brandName: true,
+            productName: true,
+            partName: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const reportsAgainst = await this.prisma.report.count({
+      where: { targetType: 'user', targetId: id },
+    });
+    return { ...user, reportsAgainst };
+  }
+
+  /**
+   * Suspends or reactivates an account. A suspended user can't log in and
+   * their existing tokens stop working (JwtStrategy checks status). An
+   * admin can't suspend themselves - same lock-out guard as setUserRole.
+   */
+  async setUserStatus(id: string, status: UserStatus, actingAdminId: string) {
+    if (id === actingAdminId) {
+      throw new BadRequestException('You cannot suspend your own account');
+    }
+    const existing = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!existing) throw new NotFoundException('User not found');
+
+    return this.prisma.user.update({
+      where: { id },
+      data: { status },
+      select: { id: true, email: true, displayName: true, status: true },
     });
   }
 
