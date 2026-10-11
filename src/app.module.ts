@@ -16,6 +16,7 @@ import { ReviewsModule } from './reviews/reviews.module';
 import { SavedModule } from './saved/saved.module';
 import { MailModule } from './mail/mail.module';
 import { SafetyModule } from './safety/safety.module';
+import { SupportModule } from './support/support.module';
 import { MessagesModule } from './messages/messages.module';
 
 @Module({
@@ -32,6 +33,7 @@ import { MessagesModule } from './messages/messages.module';
     AdminModule,
     MessagesModule,
     SafetyModule,
+    SupportModule,
     MailModule,
     SavedModule,
     ReviewsModule,

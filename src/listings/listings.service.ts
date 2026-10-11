@@ -27,11 +27,8 @@ export class ListingsService {
   /**
    * GET /listings - browse/search with filters + pagination.
    *
-   * NOTE: the original Supabase schema had a generated `search_vector`
-   * tsvector column + GIN index for `q` (see 0001_init_schema.sql). That's
-   * intentionally not in prisma/schema.prisma yet (Prisma doesn't model
-   * generated/stored columns declaratively) - `q` here does a plain
-   * case-insensitive `contains` across the free-text fields instead. Good
+   * NOTE: `q` does a plain case-insensitive `contains` across the free-text
+   * fields (Prisma doesn't model generated tsvector columns declaratively). Good
    * enough for an early catalog, but swap this for a real Postgres
    * full-text (or `pg_trgm`) query before search volume gets large.
    */

@@ -59,7 +59,7 @@ describe('AuthService', () => {
         email: 'seller@example.com',
         password: 'correct-horse-battery-staple',
         displayName: 'Priya',
-        phone: '+91 9876543210',
+        phone: '9876543210',
       });
 
       expect(prismaMock.user.create).toHaveBeenCalledTimes(1);
@@ -91,7 +91,7 @@ describe('AuthService', () => {
           email: 'seller@example.com',
           password: 'correct-horse-battery-staple',
           displayName: 'Priya',
-          phone: '+91 9876543210',
+          phone: '9876543210',
         }),
       ).rejects.toBeInstanceOf(ConflictException);
       expect(prismaMock.user.create).not.toHaveBeenCalled();

@@ -23,7 +23,7 @@
 
 ## Piqnex backend
 
-This is the standalone backend for Piqnex, replacing Supabase. It's a
+This is the backend for Piqnex. It's a
 [Nest](https://github.com/nestjs/nest) (v11, CommonJS) project with
 [Prisma](https://www.prisma.io/) as the ORM. See `../API_SPEC.md` and
 `../piqnex_api_tracker.xlsx` in the frontend project for the full endpoint
@@ -41,7 +41,7 @@ npm run start:dev
 ```
 
 Don't have Docker? Point `DATABASE_URL` in `.env` at any Postgres 13+
-instance instead (a free one from Neon/Supabase/Railway works fine) and
+instance instead (a free one from Neon or Railway works fine) and
 skip the `docker compose` step.
 
 **`npm run prisma:generate` is not optional** - run it once before your
@@ -52,14 +52,11 @@ download host, so that step was verified separately - see "Verifying this
 scaffold" below - rather than actually run there. It's one ordinary command
 anywhere with normal internet access.)
 
-`prisma/schema.prisma` is the source of truth for the schema. Its models
-map 1:1 onto the original `missing-piece-marketplace/supabase/migrations/
-0001_init_schema.sql` + `0003_admin.sql`, except `profiles` and Supabase's
-`auth.users` are merged into one `User` model (`email` + `passwordHash`),
-since Auth module (bcrypt + Passport/JWT) now owns credentials directly
-instead of Supabase Auth. Row Level Security is gone too - ownership checks
-(e.g. "only the seller can edit their own listing") move into the Nest
-service layer instead of the database.
+`prisma/schema.prisma` is the source of truth for the schema. The `User` model
+holds both the profile and the credentials (`email` + `passwordHash`), which the
+Auth module (bcrypt + Passport/JWT) checks directly. There is no database-level
+row security: ownership checks (e.g. "only the seller can edit their own
+listing") live in the Nest service layer.
 
 ### What's implemented vs. stubbed
 
@@ -77,8 +74,7 @@ Cross-referenced against `../API_SPEC.md`'s 36 endpoints:
 | **Uploads** (`POST /uploads/listing-image`) | **Stub** - throws `NotImplementedException`. Needs an S3/R2 client wired in; see `uploads.service.ts` for the exact steps |
 
 Ownership checks (a listing/need-request can only be edited or deleted by
-whoever created it) are enforced in the service layer, replacing what
-Postgres Row Level Security did in the Supabase version.
+whoever created it) are enforced in the service layer.
 
 ### Verifying this scaffold
 

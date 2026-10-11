@@ -8,7 +8,7 @@ describe('SignupDto', () => {
       email: 'seller@example.com',
       password: 'correct-horse-battery-staple',
       displayName: 'Priya',
-      phone: '+91 9876543210',
+      phone: '9876543210',
     });
 
     const errors = await validate(dto);
@@ -20,7 +20,7 @@ describe('SignupDto', () => {
       email: 'not-an-email',
       password: 'correct-horse-battery-staple',
       displayName: 'Priya',
-      phone: '+91 9876543210',
+      phone: '9876543210',
     });
 
     const errors = await validate(dto);
@@ -32,7 +32,7 @@ describe('SignupDto', () => {
       email: 'seller@example.com',
       password: 'short',
       displayName: 'Priya',
-      phone: '+91 9876543210',
+      phone: '9876543210',
     });
 
     const errors = await validate(dto);
@@ -44,7 +44,7 @@ describe('SignupDto', () => {
       email: 'seller@example.com',
       password: 'correct-horse-battery-staple',
       displayName: '',
-      phone: '+91 9876543210',
+      phone: '9876543210',
     });
 
     const errors = await validate(dto);
@@ -73,4 +73,19 @@ describe('SignupDto', () => {
     const errors = await validate(dto);
     expect(errors.some((e) => e.property === 'phone')).toBe(true);
   });
+
+  it.each(['+91 9876543210', '98765 43210', '987654321', '98765432101'])(
+    'rejects a phone number that is not exactly 10 digits (%s)',
+    async (phone) => {
+      const dto = plainToInstance(SignupDto, {
+        email: 'seller@example.com',
+        password: 'correct-horse-battery-staple',
+        displayName: 'Priya',
+        phone,
+      });
+
+      const errors = await validate(dto);
+      expect(errors.some((e) => e.property === 'phone')).toBe(true);
+    },
+  );
 });

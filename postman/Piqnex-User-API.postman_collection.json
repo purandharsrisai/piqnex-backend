@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "6ff8a499-1285-4f80-86a5-8bd2b9a504d0",
     "name": "Piqnex User API",
-    "version": "1.0.0",
+    "version": "1.2.0",
     "description": "piqnex-backend (NestJS + Prisma) - the regular, end-user-facing API: signup/login, browsing and posting listings/need requests, contacting sellers, your own profile, and image uploads.\n\nThis used to be one collection together with the admin endpoints (see Piqnex-Admin-API.postman_collection.json for those - split out on 2026-10-03 so the two APIs can be versioned and maintained independently; see each collection's own CHANGELOG for history before and after the split).\n\nQuick start:\n1. Make sure the backend is running (npm run start:dev in piqnex-backend) and Postgres is up.\n2. Import this collection - the baseUrl variable below already points at http://localhost:4000.\n3. Run 'Auth > Sign up' once (edit testEmail/testPassword in the collection variables first if you like) - it automatically saves {{accessToken}}.\n4. Every other request already uses Bearer {{accessToken}} at the collection level, so you can just run them.\n5. Requests that create something (Create listing, Create need request, Create category/brand) automatically save their new id (listingId, needRequestId, categoryId, brandId) for the requests below them that need it.\n\nFor admin-only moderation, user/role management, and catalog management, use the separate Piqnex Admin API collection instead.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -29,7 +29,7 @@
     },
     {
       "key": "testPhone",
-      "value": "+91 9876543210",
+      "value": "9876543210",
       "type": "string"
     },
     {
@@ -130,7 +130,7 @@
                 "signup"
               ]
             },
-            "description": "Creates a new user and returns {accessToken, user}. The test script below automatically saves accessToken as a collection variable so every other request can use it.\n\nphone is now REQUIRED at signup (loosely validated - digits, spaces, +, (), - ; 6-20 chars). It can still be changed later from Profile > Update my profile, where it remains optional.",
+            "description": "Creates a new user and returns {accessToken, user}. The test script below automatically saves accessToken as a collection variable so every other request can use it.\n\nphone is REQUIRED at signup and must be exactly 10 digits with no country code (e.g. 9876543210). It can still be changed later from Profile > Update my profile, where it remains optional.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\",\n  \"displayName\": \"Test User\",\n  \"phone\": \"{{testPhone}}\"\n}",
@@ -763,6 +763,46 @@
       ]
     },
     {
+      "name": "Support",
+      "item": [
+        {
+          "name": "Send a Contact Us message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/support/contact",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "support",
+                "contact"
+              ]
+            },
+            "description": "The public Contact Us form (no login needed). The message is saved in the database (support_messages table) and emailed to SUPPORT_EMAIL (default support@piqnex.com) with the sender's address as reply-to.\n\nFields: name (2-80 chars), email, topic (one of account, listing, report, feedback, other), message (10-2000 chars). `website` is a hidden spam trap: leave it empty - if it is filled in the request is silently ignored.\n\nLimited to 5 messages per 10 minutes per sender (HTTP 429 after that). Returns { \"ok\": true }.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"{{testEmail}}\",\n  \"topic\": \"account\",\n  \"message\": \"I can't update my profile photo - can you help?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "Need Requests",
       "item": [
         {
@@ -925,7 +965,7 @@
                 "me"
               ]
             },
-            "description": ""
+            "description": "The response now also includes `bio`."
           }
         },
         {
@@ -948,10 +988,10 @@
                 "me"
               ]
             },
-            "description": " phone is optional and loosely validated (digits, spaces, +, (), - ; 6-20 chars).",
+            "description": " phone is optional, but if given it must be exactly 10 digits with no country code (e.g. 9876543210).\n\nbio (optional): a short 'about me' line, up to 200 characters. Send an empty string to clear it.\n\navatarUrl (optional): the profile photo. Send a small JPEG as a data URL (data:image/jpeg;base64,...; the website shrinks it to about 256px first) or an https link. Send an empty string to remove the photo. Photos are stored in the database for now, until image storage is set up.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"displayName\": \"New Display Name\",\n  \"location\": \"Mumbai, MH\",\n  \"phone\": \"+91 98xxxxxxxx\"\n}",
+              "raw": "{\n  \"displayName\": \"New Display Name\",\n  \"location\": \"Mumbai, MH\",\n  \"phone\": \"9876543210\",\n  \"bio\": \"I repair laptops and sell spare parts.\",\n  \"avatarUrl\": \"\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

@@ -11,14 +11,29 @@ export class UpdateProfileDto {
   @MaxLength(120)
   location?: string;
 
-  // Loosely validated on purpose - international phone formats vary a lot
-  // (spaces, dashes, parens, a leading +). This just rejects obvious junk,
-  // it's not a strict E.164 check.
+  // Optional, but if given it must be exactly 10 digits (no country code),
+  // same as at signup.
   @IsOptional()
   @IsString()
-  @MaxLength(20)
-  @Matches(/^[0-9+()\-\s]{6,20}$/, {
-    message: 'Enter a valid phone number',
+  @Matches(/^[0-9]{10}$/, {
+    message: 'Enter a 10-digit phone number',
   })
   phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  bio?: string;
+
+  // Profile photo: '' removes it. Otherwise a small square JPEG sent as a
+  // data URL (the site resizes it to ~256px before upload) or an https link.
+  // TODO: move photos to object storage (R2/S3) once UploadsService is wired
+  // up, then store only the URL here.
+  @IsOptional()
+  @IsString()
+  @MaxLength(80000)
+  @Matches(/^(data:image\/jpeg;base64,[A-Za-z0-9+/=]+|https:\/\/\S+)?$/, {
+    message: 'Invalid profile photo',
+  })
+  avatarUrl?: string;
 }

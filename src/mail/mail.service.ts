@@ -7,6 +7,8 @@ export interface MailMessage {
   subject: string;
   text: string;
   html?: string;
+  /** Where a reply should go (e.g. the person who filled in the contact form). */
+  replyTo?: string;
 }
 
 /**
@@ -53,6 +55,7 @@ export class MailService {
         body: JSON.stringify({
           from: this.config.get('MAIL_FROM') ?? 'Piqnex <no-reply@piqnex.com>',
           to: [msg.to],
+          ...(msg.replyTo ? { reply_to: msg.replyTo } : {}),
           subject: msg.subject,
           text: msg.text,
           html: msg.html ?? this.wrap(msg.text),
@@ -88,6 +91,7 @@ export class MailService {
       await this.transporter.sendMail({
         from: this.config.get('MAIL_FROM') ?? this.config.get('SMTP_USER'),
         to: msg.to,
+        replyTo: msg.replyTo,
         subject: msg.subject,
         text: msg.text,
         html: msg.html ?? this.wrap(msg.text),

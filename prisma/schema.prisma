@@ -1,21 +1,13 @@
 // ============================================================================
 // Piqnex backend - Prisma schema
 // ============================================================================
-// This mirrors the schema that used to live in Supabase
-// (missing-piece-marketplace/supabase/migrations/0001_init_schema.sql +
-// 0003_admin.sql), now that the backend owns its own Postgres database
-// instead of Supabase. Two changes from the original SQL, both because
-// Supabase Auth no longer exists:
-//   1. `profiles` (which extended Supabase's `auth.users`) is now a single
-//      `User` model that also owns the credentials (`email`, `passwordHash`)
-//      the Auth module (task #24) will check with bcrypt + Passport/JWT.
-//   2. Row Level Security is gone - Supabase enforced "you can only edit
-//      your own listing" at the database layer. Here that same rule has to
-//      be enforced in the NestJS service layer instead (e.g. an ownership
-//      check in ListingsService before an update/delete).
-// Every table name, column name, default, and foreign-key behavior below
-// (`onDelete: Cascade` / `SetNull` / `Restrict`) matches the original SQL
-// 1:1 - see the @map()/@@map() on anything whose name changed to camelCase.
+// The backend owns its own Postgres database. `User` is a single model that
+// holds both the profile and the credentials (`email`, `passwordHash`) that the
+// Auth module checks with bcrypt + Passport/JWT. There is no database-level
+// row security: "you can only edit your own listing" is enforced in the NestJS
+// service layer (e.g. an ownership check in ListingsService before update/delete).
+// Column names are snake_case in the database; see @map()/@@map() for the
+// camelCase names used in code.
 // ============================================================================
 
 generator client {
@@ -41,6 +33,8 @@ model User {
   // signup time (see UpdateProfileDto / ProfileService.updateMe).
   phone        String?
   avatarUrl    String?  @map("avatar_url")
+  // Short "about me" line shown on the profile (max 200 chars, see UpdateProfileDto).
+  bio          String?
   isAdmin      Boolean  @default(false) @map("is_admin")
   /// One of: 'ADMIN' | 'MODERATOR' (see admin/admin.constants.ts) - only
   /// meaningful when isAdmin is true; null for every regular user, and for
@@ -314,6 +308,23 @@ model ContactRequest {
   @@index([listingId])
   @@index([buyerId])
   @@map("contact_requests")
+}
+
+// ----------------------------------------------------------------------------
+// 6b. SUPPORT MESSAGES (public "Contact us" form -> saved here and emailed)
+//     status: "new" | "handled"
+// ----------------------------------------------------------------------------
+model SupportMessage {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  email     String
+  topic     String
+  message   String
+  status    String   @default("new")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([status, createdAt(sort: Desc)])
+  @@map("support_messages")
 }
 
 // ----------------------------------------------------------------------------

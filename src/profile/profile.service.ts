@@ -10,6 +10,7 @@ const PROFILE_SELECT = {
   location: true,
   phone: true,
   avatarUrl: true,
+  bio: true,
   isAdmin: true,
   role: true,
   createdAt: true,
@@ -33,6 +34,10 @@ export class ProfileService {
         displayName: dto.displayName,
         location: dto.location,
         phone: dto.phone,
+        bio: dto.bio === undefined ? undefined : dto.bio.trim() || null,
+        // '' clears the photo; otherwise a small JPEG data URL or an https link.
+        avatarUrl:
+          dto.avatarUrl === undefined ? undefined : dto.avatarUrl || null,
       },
       select: PROFILE_SELECT,
     });

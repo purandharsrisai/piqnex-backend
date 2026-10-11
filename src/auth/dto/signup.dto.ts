@@ -20,16 +20,12 @@ export class SignupDto {
   @MaxLength(80)
   displayName!: string;
 
-  // Required at signup. Loosely validated on purpose - international phone
-  // formats vary a lot (spaces, dashes, parens, a leading +); this just
-  // rejects obvious junk, it's not a strict E.164 check. Can still be
+  // Required at signup: exactly 10 digits, no country code. Can still be
   // changed later from the profile page (UpdateProfileDto), where it
-  // remains optional - this is the only place it's mandatory.
+  // remains optional and more loosely validated.
   @IsString()
-  @MinLength(6, { message: 'Enter a valid phone number' })
-  @MaxLength(20)
-  @Matches(/^[0-9+()\-\s]{6,20}$/, {
-    message: 'Enter a valid phone number',
+  @Matches(/^[0-9]{10}$/, {
+    message: 'Enter a 10-digit phone number',
   })
   phone!: string;
 }
