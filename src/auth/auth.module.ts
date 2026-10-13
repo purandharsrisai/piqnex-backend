@@ -4,6 +4,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { GoogleAuthController } from './google-auth.controller';
+import { GoogleAuthService } from './google-auth.service';
 import { JwtStrategy } from './jwt.strategy';
 
 @Module({
@@ -23,8 +25,8 @@ import { JwtStrategy } from './jwt.strategy';
       }),
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  controllers: [AuthController, GoogleAuthController],
+  providers: [AuthService, GoogleAuthService, JwtStrategy],
   // AuthService (to hash/verify passwords) and JwtModule's JwtService (to
   // mint tokens for a newly-created user right after signup) are the parts
   // other modules will want; JwtAuthGuard/AdminGuard are imported directly

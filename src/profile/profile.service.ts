@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
@@ -7,8 +8,11 @@ const PROFILE_SELECT = {
   email: true,
   displayName: true,
   location: true,
+  phone: true,
   avatarUrl: true,
+  bio: true,
   isAdmin: true,
+  role: true,
   createdAt: true,
 } as const;
 
@@ -29,9 +33,27 @@ export class ProfileService {
       data: {
         displayName: dto.displayName,
         location: dto.location,
+        phone: dto.phone,
+        bio: dto.bio === undefined ? undefined : dto.bio.trim() || null,
+        // '' clears the photo; otherwise a small JPEG data URL or an https link.
+        avatarUrl:
+          dto.avatarUrl === undefined ? undefined : dto.avatarUrl || null,
       },
       select: PROFILE_SELECT,
     });
+  }
+
+  /** Permanently deletes the account; all owned rows cascade (listings, messages, ...). */
+  async deleteMe(userId: string, password: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { passwordHash: true, isAdmin: true },
+    });
+    if (!(await bcrypt.compare(password, user.passwordHash))) {
+      throw new UnauthorizedException('Password does not match our records');
+    }
+    await this.prisma.user.delete({ where: { id: userId } });
+    return { deleted: true };
   }
 
   getMyListings(userId: string) {

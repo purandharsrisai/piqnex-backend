@@ -1,7 +1,5 @@
-// Same allowed values as the original Postgres `check` constraints on
-// listings.condition / listings.status (see missing-piece-marketplace/
-// supabase/migrations/0001_init_schema.sql). Enforced here in the DTO
-// instead of the database.
+// Allowed values for listings.condition / listings.status. Enforced here in
+// the DTO rather than with database check constraints.
 export const LISTING_CONDITIONS = [
   'New',
   'Like New',

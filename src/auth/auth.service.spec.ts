@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import { AuthService } from './auth.service';
 
 // NOTE: this suite needs `@prisma/client`'s generated types to exist
@@ -29,6 +30,10 @@ describe('AuthService', () => {
         AuthService,
         { provide: PrismaService, useValue: prismaMock },
         {
+          provide: MailService,
+          useValue: { isLive: false, sendPasswordReset: jest.fn() },
+        },
+        {
           provide: JwtService,
           useValue: { sign: jest.fn().mockReturnValue('signed.jwt.token') },
         },
@@ -45,6 +50,7 @@ describe('AuthService', () => {
         Promise.resolve({
           id: 'user-1',
           isAdmin: false,
+          role: null,
           ...data,
         }),
       );
@@ -53,6 +59,7 @@ describe('AuthService', () => {
         email: 'seller@example.com',
         password: 'correct-horse-battery-staple',
         displayName: 'Priya',
+        phone: '9876543210',
       });
 
       expect(prismaMock.user.create).toHaveBeenCalledTimes(1);
@@ -72,6 +79,7 @@ describe('AuthService', () => {
         email: 'seller@example.com',
         displayName: 'Priya',
         isAdmin: false,
+        role: null,
       });
     });
 
@@ -83,6 +91,7 @@ describe('AuthService', () => {
           email: 'seller@example.com',
           password: 'correct-horse-battery-staple',
           displayName: 'Priya',
+          phone: '9876543210',
         }),
       ).rejects.toBeInstanceOf(ConflictException);
       expect(prismaMock.user.create).not.toHaveBeenCalled();
@@ -97,6 +106,7 @@ describe('AuthService', () => {
         email: 'seller@example.com',
         displayName: 'Priya',
         isAdmin: false,
+        role: null,
         passwordHash,
       });
 
@@ -116,6 +126,7 @@ describe('AuthService', () => {
         email: 'seller@example.com',
         displayName: 'Priya',
         isAdmin: false,
+        role: null,
         passwordHash,
       });
 

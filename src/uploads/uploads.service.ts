@@ -3,8 +3,7 @@ import { Injectable, NotImplementedException } from '@nestjs/common';
 @Injectable()
 export class UploadsService {
   /**
-   * STUB. Replaces Supabase Storage's upload call inside the original
-   * `createListingAction`. To make this real:
+   * STUB - listing photo storage is not set up yet. To make this real:
    *   1. `npm install @aws-sdk/client-s3` (works for both AWS S3 and
    *      Cloudflare R2, which is S3-compatible).
    *   2. Add an interceptor to the controller (`@UseInterceptors(FileInterceptor('file'))`

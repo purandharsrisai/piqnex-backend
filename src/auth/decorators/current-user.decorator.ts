@@ -6,6 +6,9 @@ export interface AuthenticatedUser {
   id: string;
   email: string;
   isAdmin: boolean;
+  // Only meaningful when isAdmin is true - 'ADMIN' | 'MODERATOR' | null.
+  // See RolesGuard / @Roles() for how this is enforced on a route.
+  role: string | null;
 }
 
 /**
