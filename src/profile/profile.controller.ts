@@ -4,19 +4,25 @@ import {
   Delete,
   Get,
   Patch,
+  Post,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { DeleteAccountDto } from './dto/delete-account.dto';
+import { RegisterPushTokenDto } from './dto/register-push-token.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { PushService } from '../push/push.service';
 import { ProfileService } from './profile.service';
 
 @Controller('profile')
 @UseGuards(JwtAuthGuard)
 export class ProfileController {
-  constructor(private readonly profileService: ProfileService) {}
+  constructor(
+    private readonly profileService: ProfileService,
+    private readonly pushService: PushService,
+  ) {}
 
   @Get('me')
   getMe(@CurrentUser() user: AuthenticatedUser) {
@@ -47,5 +53,14 @@ export class ProfileController {
   @Get('me/need-requests')
   getMyNeedRequests(@CurrentUser() user: AuthenticatedUser) {
     return this.profileService.getMyNeedRequests(user.id);
+  }
+
+  /** Mobile app: save this device's Expo push token for the current user. */
+  @Post('me/push-token')
+  registerPushToken(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RegisterPushTokenDto,
+  ) {
+    return this.pushService.register(user.id, dto.token, dto.platform);
   }
 }

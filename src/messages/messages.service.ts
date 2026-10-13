@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { PushService } from '../push/push.service';
 import { SafetyService } from '../safety/safety.service';
 
 @Injectable()
@@ -14,6 +15,7 @@ export class MessagesService {
     private readonly prisma: PrismaService,
     private readonly safety: SafetyService,
     private readonly mail: MailService,
+    private readonly push: PushService,
   ) {}
 
   /**
@@ -64,6 +66,15 @@ export class MessagesService {
             price: true,
             currency: true,
             status: true,
+            sellerId: true,
+            modelLabel: true,
+            condition: true,
+            location: true,
+            images: {
+              orderBy: { sortOrder: 'asc' },
+              take: 1,
+              select: { storagePath: true, sortOrder: true },
+            },
           },
         },
         buyer: { select: { id: true, displayName: true, avatarUrl: true } },
@@ -83,7 +94,20 @@ export class MessagesService {
       orderBy: { lastMessageAt: 'desc' },
       include: {
         listing: {
-          select: { id: true, partName: true, productName: true, brandName: true },
+          select: {
+            id: true,
+            partName: true,
+            productName: true,
+            brandName: true,
+            price: true,
+            currency: true,
+            status: true,
+            images: {
+              orderBy: { sortOrder: 'asc' },
+              take: 1,
+              select: { storagePath: true, sortOrder: true },
+            },
+          },
         },
         buyer: { select: { id: true, displayName: true, avatarUrl: true } },
         seller: { select: { id: true, displayName: true, avatarUrl: true } },
@@ -104,6 +128,9 @@ export class MessagesService {
         return {
           id: c.id,
           listing: c.listing,
+          // 'buying' when the user started the chat about someone else's
+          // listing, 'selling' when it is about the user's own listing.
+          role: isBuyer ? ('buying' as const) : ('selling' as const),
           other: isBuyer ? c.seller : c.buyer,
           lastMessage: c.messages[0] ?? null,
           lastMessageAt: c.lastMessageAt,
@@ -121,6 +148,10 @@ export class MessagesService {
   async thread(id: string, userId: string) {
     const c = await this.getForUser(id, userId);
     const isBuyer = c.buyerId === userId;
+    // Read times as they were BEFORE this visit, so the page can mark
+    // "new messages" and show whether the other person has seen yours.
+    const myReadAt = isBuyer ? c.buyerReadAt : c.sellerReadAt;
+    const otherReadAt = isBuyer ? c.sellerReadAt : c.buyerReadAt;
     const now = new Date();
     await this.prisma.conversation.update({
       where: { id },
@@ -135,6 +166,8 @@ export class MessagesService {
       listing: c.listing,
       other: isBuyer ? c.seller : c.buyer,
       me: userId,
+      myReadAt,
+      otherReadAt,
       messages,
     };
   }
@@ -161,6 +194,8 @@ export class MessagesService {
 
   /** Fire-and-forget email to the recipient (never blocks or fails the request). */
   private notify(conversationId: string, fromId: string, toId: string, body: string) {
+    // Push notification to the recipient's phone(s) - fire-and-forget, never throws.
+    void this.push.notifyNewMessage(conversationId, fromId, toId, body);
     return (async () => {
       const [from, to, conv] = await Promise.all([
         this.prisma.user.findUnique({ where: { id: fromId }, select: { displayName: true } }),

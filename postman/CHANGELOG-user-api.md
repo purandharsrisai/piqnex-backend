@@ -8,6 +8,16 @@ and `CHANGELOG-admin-api.md`.
 
 ---
 
+## Version 1.3.0 — 2026-10-17, 09:00 UTC
+
+**Changes made:**
+Nothing changed on existing requests. Sending a chat message (`POST /conversations/:id/messages` and `POST /listings/:id/contact`) now also sends a push notification to the other person's registered phones (fire-and-forget; it never affects the response).
+
+**Newly added:**
+"Register push token" in the Profile folder (`POST /profile/me/push-token`, login required): body `{ token, platform }` where `platform` is `ios` or `android`. Saves the device's Expo push token for the current user (new `push_tokens` table, migration `20261017000000_add_push_tokens`).
+
+---
+
 ## Version 1.2.0 — 2026-10-13, 09:00 UTC
 
 **Changes made:**

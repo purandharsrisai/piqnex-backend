@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "6ff8a499-1285-4f80-86a5-8bd2b9a504d0",
     "name": "Piqnex User API",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "description": "piqnex-backend (NestJS + Prisma) - the regular, end-user-facing API: signup/login, browsing and posting listings/need requests, contacting sellers, your own profile, and image uploads.\n\nThis used to be one collection together with the admin endpoints (see Piqnex-Admin-API.postman_collection.json for those - split out on 2026-10-03 so the two APIs can be versioned and maintained independently; see each collection's own CHANGELOG for history before and after the split).\n\nQuick start:\n1. Make sure the backend is running (npm run start:dev in piqnex-backend) and Postgres is up.\n2. Import this collection - the baseUrl variable below already points at http://localhost:4000.\n3. Run 'Auth > Sign up' once (edit testEmail/testPassword in the collection variables first if you like) - it automatically saves {{accessToken}}.\n4. Every other request already uses Bearer {{accessToken}} at the collection level, so you can just run them.\n5. Requests that create something (Create listing, Create need request, Create category/brand) automatically save their new id (listingId, needRequestId, categoryId, brandId) for the requests below them that need it.\n\nFor admin-only moderation, user/role management, and catalog management, use the separate Piqnex Admin API collection instead.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -1036,6 +1036,39 @@
               ]
             },
             "description": ""
+          }
+        },
+        {
+          "name": "Register push token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]\",\n  \"platform\": \"ios\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/profile/me/push-token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "profile",
+                "me",
+                "push-token"
+              ]
+            },
+            "description": "Mobile app only: saves this device's Expo push token for the signed-in user so they get a notification when they receive a chat message. `platform` is `ios` or `android`. Registering the same token again just moves it to the current user. Returns `{ \"ok\": true }`."
           }
         }
       ]
