@@ -91,6 +91,21 @@ Postgres and round-tripping test data through it - confirming defaults,
 and the cascade/restrict foreign-key rules, all behave as designed. See
 `prisma/schema.prisma`'s header comment for details.
 
+## Versioning & commit messages
+
+Every commit to this repo automatically gets a new version number (see the
+`version` field in `package.json`). This happens on its own via a git hook
+(`.husky/pre-commit` -> `scripts/bump-version.js`) - you don't need to do
+anything, and you shouldn't try to skip it. The hook is installed by
+`npm install` (the `prepare` script). This means no code is ever committed
+(or pushed) without the version changing.
+
+Commit messages should be written in simple, plain English describing what
+actually changed - no technical jargon - so that anyone, technical or not,
+can read the project's history and understand it. This applies even to
+small changes: instead of "fix bug", write something like "Fixed an issue
+where the login button didn't work on mobile phones."
+
 ## Description
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
